@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { Prisma, UserProfile } from '@prisma/client';
 import { PremiumService } from '../premium/premium.service';
@@ -81,6 +82,71 @@ export class ProfileService {
 
   async getMe(userId: string) {
     return this.buildIdentityResponse(userId);
+  }
+
+  async getPublicProfile(userId: string) {
+    const identitySnapshot =
+      await this.usersAccountStateService.getUserIdentitySnapshot(userId);
+    const premiumState = await this.premiumService.buildPremiumState(userId);
+
+    if (
+      identitySnapshot.accountState.isDeleted ||
+      !identitySnapshot.user.profile
+    ) {
+      throw new NotFoundException('Public profile not found');
+    }
+
+    const profile = identitySnapshot.user.profile;
+    const profileAvatarSource = await this.prismaService.userProfile.findUnique(
+      {
+        where: { userId },
+        select: {
+          avatarStorageKey: true,
+        },
+      },
+    );
+    let avatarUrl = profile.avatarUrl;
+
+    if (profileAvatarSource?.avatarStorageKey) {
+      try {
+        avatarUrl = await this.storageService.createAvatarViewUrl(
+          profileAvatarSource.avatarStorageKey,
+        );
+      } catch {
+        avatarUrl = profile.avatarUrl;
+      }
+    }
+
+    const displayName = [profile.firstName, profile.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return {
+      user: {
+        id: identitySnapshot.user.id,
+        status: identitySnapshot.user.status,
+        accountCreatedAt: identitySnapshot.user.accountCreatedAt,
+        accountAgeDays: identitySnapshot.user.accountAgeDays,
+      },
+      premium: premiumState,
+      profile: {
+        id: profile.id,
+        userId: profile.userId,
+        displayName: displayName || 'Usuario Truo',
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        bio: profile.bio,
+        city: profile.city,
+        approximateLocation: profile.approximateLocation,
+        avatarUrl,
+        verificationStatus: profile.verificationStatus,
+        isAvatarVerified: profile.isAvatarVerified,
+        avatarVerifiedAt: profile.avatarVerifiedAt,
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt,
+      },
+    };
   }
 
   async updateMe(userId: string, updateProfileDto: UpdateProfileDto) {
@@ -164,20 +230,23 @@ export class ProfileService {
         updateProfileDto.documentNumber.trim() || null;
 
       if (normalizedDocumentNumber) {
-        const existingUserByDocumentNumber = await this.prismaService.user.findFirst({
-          where: {
-            documentNumber: normalizedDocumentNumber,
-            id: {
-              not: userId,
+        const existingUserByDocumentNumber =
+          await this.prismaService.user.findFirst({
+            where: {
+              documentNumber: normalizedDocumentNumber,
+              id: {
+                not: userId,
+              },
             },
-          },
-          select: {
-            id: true,
-          },
-        });
+            select: {
+              id: true,
+            },
+          });
 
         if (existingUserByDocumentNumber) {
-          throw new BadRequestException('Document number is already registered');
+          throw new BadRequestException(
+            'Document number is already registered',
+          );
         }
       }
     }

@@ -77,25 +77,27 @@ export class AvatarVerificationService {
       },
     });
 
-    await this.queueService.getSystemQueue().add(
-      AVATAR_VECTOR_EXTRACTION_JOB,
-      payload,
-      {
+    await this.queueService
+      .getSystemQueue()
+      .add(AVATAR_VECTOR_EXTRACTION_JOB, payload, {
         jobId: `${AVATAR_VECTOR_EXTRACTION_JOB}:${payload.userId}:${payload.storageKey}`,
         attempts: 5,
+      });
+
+    this.securityLogger.log(
+      'users.avatar.vector.extract_forward.scheduled',
+      'success',
+      {
+        targetUserId: payload.userId,
+        metadata: {
+          endpoint: new URL(
+            '/app/vectores/extract-forward',
+            this.facialValidatorBaseUrl,
+          ).toString(),
+          storageKey: payload.storageKey,
+        },
       },
     );
-
-    this.securityLogger.log('users.avatar.vector.extract_forward.scheduled', 'success', {
-      targetUserId: payload.userId,
-      metadata: {
-        endpoint: new URL(
-          '/app/vectores/extract-forward',
-          this.facialValidatorBaseUrl,
-        ).toString(),
-        storageKey: payload.storageKey,
-      },
-    });
 
     return {
       success: true,
@@ -114,6 +116,8 @@ export class AvatarVerificationService {
       where: { userId },
       select: {
         avatarUrl: true,
+        avatarVectorEmbedding: true,
+        avatarVectorStatus: true,
         avatarValidationStatus: true,
       },
     });
@@ -128,11 +132,21 @@ export class AvatarVerificationService {
       );
     }
 
+    if (!profile.avatarVectorEmbedding) {
+      throw new BadRequestException(
+        profile.avatarVectorStatus === AVATAR_PROCESSING_STATUS.QUEUED ||
+          profile.avatarVectorStatus === AVATAR_PROCESSING_STATUS.PROCESSING ||
+          profile.avatarVectorStatus === AVATAR_PROCESSING_STATUS.RETRYING
+          ? 'Tu avatar todavía se está procesando. Espera a que termine la vectorización antes de validar.'
+          : 'Tu avatar todavía no tiene vector de referencia. Revisa la subida del avatar y vuelve a intentarlo.',
+      );
+    }
+
     const activeValidationStatuses: string[] = [
-        AVATAR_PROCESSING_STATUS.QUEUED,
-        AVATAR_PROCESSING_STATUS.PROCESSING,
-        AVATAR_PROCESSING_STATUS.RETRYING,
-      ];
+      AVATAR_PROCESSING_STATUS.QUEUED,
+      AVATAR_PROCESSING_STATUS.PROCESSING,
+      AVATAR_PROCESSING_STATUS.RETRYING,
+    ];
 
     if (activeValidationStatuses.includes(profile.avatarValidationStatus)) {
       return {
@@ -206,12 +220,16 @@ export class AvatarVerificationService {
         },
       });
 
-      this.securityLogger.log('users.avatar.vector.extract_forward', 'success', {
-        targetUserId: payload.userId,
-        metadata: {
-          vectorSavedInline: true,
+      this.securityLogger.log(
+        'users.avatar.vector.extract_forward',
+        'success',
+        {
+          targetUserId: payload.userId,
+          metadata: {
+            vectorSavedInline: true,
+          },
         },
-      });
+      );
     } catch (error) {
       await this.handleVectorJobFailure(payload.userId, error, jobContext);
       throw error;
@@ -222,7 +240,10 @@ export class AvatarVerificationService {
     payload: ValidationRunPayload,
     jobContext: AvatarJobContext,
   ) {
-    await this.markValidationProcessing(payload.userId, jobContext.attemptsMade);
+    await this.markValidationProcessing(
+      payload.userId,
+      jobContext.attemptsMade,
+    );
 
     try {
       await this.ensureAvatarValidationReady(payload.userId);
@@ -277,7 +298,8 @@ export class AvatarVerificationService {
     this.securityLogger.log('users.avatar.vector.save', 'success', {
       targetUserId: userId,
       metadata: {
-        avatarVectorUpdatedAt: updatedProfile.avatarVectorUpdatedAt?.toISOString(),
+        avatarVectorUpdatedAt:
+          updatedProfile.avatarVectorUpdatedAt?.toISOString(),
       },
     });
 
@@ -491,7 +513,9 @@ export class AvatarVerificationService {
       this.securityLogger.log('users.avatar.validation.run', 'error', {
         targetUserId: payload.userId,
         reason:
-          error instanceof Error ? error.message : 'facial_validator_unreachable',
+          error instanceof Error
+            ? error.message
+            : 'facial_validator_unreachable',
         metadata: {
           endpoint: endpoint.toString(),
         },
@@ -812,7 +836,8 @@ export class AvatarVerificationService {
       nestedData?.rango,
       nestedData?.score,
     ].find(
-      (candidate) => typeof candidate === 'number' && Number.isFinite(candidate),
+      (candidate) =>
+        typeof candidate === 'number' && Number.isFinite(candidate),
     ) as number | undefined;
 
     const faceDetectedCandidate = [

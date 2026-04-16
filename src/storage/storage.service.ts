@@ -21,6 +21,8 @@ const allowedMimeTypes = {
   'image/webp': 'webp',
 } as const;
 
+const AVATAR_VIEW_URL_TTL_SECONDS = 60 * 60 * 24;
+
 type AllowedMimeType = keyof typeof allowedMimeTypes;
 
 @Injectable()
@@ -87,7 +89,7 @@ export class StorageService {
     });
 
     return getSignedUrl(this.client, command, {
-      expiresIn: 300,
+      expiresIn: AVATAR_VIEW_URL_TTL_SECONDS,
     });
   }
 
