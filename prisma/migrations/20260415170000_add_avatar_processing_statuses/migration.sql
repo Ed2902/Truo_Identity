@@ -1,0 +1,15 @@
+ALTER TABLE "UserProfile"
+ADD COLUMN "avatarVectorStatus" TEXT NOT NULL DEFAULT 'idle',
+ADD COLUMN "avatarVectorRequestedAt" TIMESTAMP(3),
+ADD COLUMN "avatarVectorStartedAt" TIMESTAMP(3),
+ADD COLUMN "avatarVectorFinishedAt" TIMESTAMP(3),
+ADD COLUMN "avatarVectorRetryCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "avatarVectorLastError" TEXT,
+ADD COLUMN "avatarVectorLastErrorCode" TEXT,
+ADD COLUMN "avatarValidationStatus" TEXT NOT NULL DEFAULT 'idle',
+ADD COLUMN "avatarValidationRequestedAt" TIMESTAMP(3),
+ADD COLUMN "avatarValidationStartedAt" TIMESTAMP(3),
+ADD COLUMN "avatarValidationFinishedAt" TIMESTAMP(3),
+ADD COLUMN "avatarValidationRetryCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "avatarValidationLastError" TEXT,
+ADD COLUMN "avatarValidationLastErrorCode" TEXT;

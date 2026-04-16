@@ -1,0 +1,184 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  phone          String   @unique
+  documentNumber String? @unique
+  password       String
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  profile               UserProfile?
+  sessions              UserSession[]
+  passwordRecoveryCodes PasswordRecoveryCode[]
+  blockedUsers          UserBlock[]             @relation("UserBlocksCreated")
+  blockedByUsers        UserBlock[]             @relation("UserBlocksReceived")
+  premiumMemberships    UserPremium[]
+  restrictions          UserRestriction[]
+  identityProviders     UserIdentityProvider[]
+}
+
+model UserProfile {
+  id                        String    @id @default(uuid())
+  userId                    String    @unique
+  firstName                 String
+  lastName                  String?
+  timeZone                  String?
+  birthDate                 DateTime?
+  gender                    String?
+  bio                       String?
+  city                      String?
+  latitude                  Float?
+  longitude                 Float?
+  avatarUrl                 String?
+  avatarStorageKey          String?
+  avatarVectorStatus        String    @default("idle")
+  avatarVectorRequestedAt   DateTime?
+  avatarVectorStartedAt     DateTime?
+  avatarVectorFinishedAt    DateTime?
+  avatarVectorRetryCount    Int       @default(0)
+  avatarVectorLastError     String?   @db.Text
+  avatarVectorLastErrorCode String?
+  avatarValidationStatus        String    @default("idle")
+  avatarValidationRequestedAt   DateTime?
+  avatarValidationStartedAt     DateTime?
+  avatarValidationFinishedAt    DateTime?
+  avatarValidationRetryCount    Int       @default(0)
+  avatarValidationLastError     String?   @db.Text
+  avatarValidationLastErrorCode String?
+  isAvatarVerified          Boolean   @default(false)
+  avatarVectorEmbedding     String?   @db.Text
+  avatarVectorUpdatedAt     DateTime?
+  avatarVerifiedAt          DateTime?
+  lastAvatarValidationScore Float?
+  lastAvatarValidationAt    DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSession {
+  id               String   @id @default(uuid())
+  userId           String
+  deviceId         String
+  deviceName       String?
+  refreshTokenHash String
+  ipAddress        String?
+  userAgent        String?
+  expiresAt        DateTime
+  lastUsedAt       DateTime?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([isActive])
+}
+
+model PasswordRecoveryCode {
+  id           String   @id @default(uuid())
+  userId       String
+  email        String
+  codeHash     String
+  expiresAt    DateTime
+  usedAt       DateTime?
+  attemptCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model UserBlock {
+  id            String   @id @default(uuid())
+  userId        String
+  blockedUserId String
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  user        User @relation("UserBlocksCreated", fields: [userId], references: [id], onDelete: Cascade)
+  blockedUser User @relation("UserBlocksReceived", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blockedUserId])
+  @@index([userId])
+  @@index([blockedUserId])
+}
+
+model UserPremium {
+  id             String   @id @default(uuid())
+  userId         String
+  membershipType String   @default("premium")
+  billingCycle   String
+  status         String   @default("active")
+  startsAt       DateTime
+  endsAt         DateTime
+  source         String?  @default("manual")
+  idempotencyKey String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([status, endsAt])
+  @@index([createdAt])
+  @@unique([userId, idempotencyKey])
+}
+
+model UserRestriction {
+  id               String   @id @default(uuid())
+  userId           String
+  type             String
+  reason           String?
+  startsAt         DateTime
+  endsAt           DateTime?
+  isActive         Boolean  @default(true)
+  createdByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isActive])
+  @@index([isActive, startsAt, endsAt])
+}
+
+model UserIdentityProvider {
+  id             String   @id @default(uuid())
+  userId         String
+  provider       String
+  providerUserId String
+  providerEmail  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider])
+}

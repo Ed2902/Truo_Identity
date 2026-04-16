@@ -1,0 +1,2 @@
+ALTER TABLE "UserProfile"
+ALTER COLUMN "firstName" DROP NOT NULL;
