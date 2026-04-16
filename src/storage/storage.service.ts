@@ -34,23 +34,21 @@ export class StorageService {
 
   constructor(private readonly configService: ConfigService) {
     this.bucket = this.configService.getOrThrow<string>('storage.bucket');
-    this.publicBaseUrl = 'storage.publicBaseUrl',
-      ,
-    
-    ); is.maxUploadSize = this.configService.
-      getOrThrow<number>(,
-    
+    this.publicBaseUrl = this.configService.getOrThrow<string>(
+      'storage.publicBaseUrl',
+    );
+    this.maxUploadSize = this.configService.getOrThrow<number>(
       'storage.maxUploadSize',
     );
     this.client = new S3Client({
       region: 'us-east-1',
-      endpoint: this entials: {
+      endpoint: this.configService.getOrThrow<string>('storage.endpoint'),
+      credentials: {
         accessKeyId: this.configService.getOrThrow<string>('storage.accessKey'),
         secretAccessKey:
           this.configService.getOrThrow<string>('storage.secretKey'),
-      }, rcePathStyle: this.configService.getOrT
-        hrow<boolean>(,
-      
+      },
+      forcePathStyle: this.configService.getOrThrow<boolean>(
         'storage.forcePathStyle',
       ),
       requestChecksumCalculation: 'WHEN_REQUIRED',
@@ -165,8 +163,7 @@ export class StorageService {
   private generateAvatarStorageKey(
     userId: string,
     fileName: string,
-    mimeType: Allowed
-     MimeType,
+    mimeType: AllowedMimeType,
   ): string {
     const extension =
       this.extractExtension(fileName) ?? allowedMimeTypes[mimeType];
